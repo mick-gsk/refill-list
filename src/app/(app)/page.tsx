@@ -1,13 +1,11 @@
 /**
- * Dashboard / Übersicht (RL-13, RL-14).
- * Server Component: lädt Session + Haushalt-Daten,
- * rendert Prioritätsliste + max. 3 Vorschläge.
+ * Haupt-Shopping-Liste (RL-01, RL-13, RL-14).
+ * Bring!-Stil: Kachelraster, nach Kategorie gruppierbar.
  */
 import { auth } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/db';
-import { ItemList } from '@/components/item-list/ItemList';
-import { getDashboardSuggestions } from '@/shared/models/suggestion';
+import { ShoppingTileGrid } from '@/components/list/ShoppingTileGrid';
 import Link from 'next/link';
 import type { ItemWithCategory } from '@/shared/types/index';
 
@@ -15,85 +13,36 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) redirect('/login');
 
-  const userId = session.user.id;
   const householdId = (session as { householdId?: string | null }).householdId;
 
-  // Kein Haushalt → Onboarding
   if (!householdId) {
     return (
-      <div style={emptyWrapStyle}>
-        <h2 style={{ fontSize: 'var(--text-xl)' }}>Willkommen bei refill</h2>
-        <p style={{ color: 'var(--color-text-muted)', marginTop: 'var(--space-2)', maxWidth: '30ch', textAlign: 'center' }}>
-          Erstelle einen Haushalt oder tritt einem per Einladungslink bei.
+      <div className="onboarding-screen">
+        <div className="onboarding-icon" aria-hidden="true">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="32" fill="var(--color-primary-highlight)" />
+            <path d="M20 28h6a6 6 0 0 1 0 12h-6V28z" fill="var(--color-primary)" />
+            <path d="M30 40l6 8" stroke="var(--color-primary)" strokeWidth="3" strokeLinecap="round"/>
+            <circle cx="38" cy="22" r="4" fill="var(--color-primary)" opacity="0.5"/>
+          </svg>
+        </div>
+        <h1 className="onboarding-title">Willkommen bei refill</h1>
+        <p className="onboarding-subtitle">
+          Erstelle einen Haushalt oder tritt einem per Einladungslink bei — und plant gemeinsam euren Einkauf.
         </p>
-        <Link href="/household/new" style={btnStyle}>Haushalt erstellen</Link>
+        <div className="onboarding-actions">
+          <Link href="/household/new" className="btn btn-primary">Haushalt erstellen</Link>
+          <Link href="/household/join" className="btn btn-secondary">Mit Link beitreten</Link>
+        </div>
       </div>
     );
   }
 
   const items = await db.item.findMany({
-    where: { householdId },
-    include: { category: true },
-    orderBy: [{ isStandard: 'desc' }, { frequencyScore: 'desc' }, { updatedAt: 'asc' }],
+    where: { householdId, itemState: { not: 'ARCHIVED' } },
+    include: { category: true, createdBy: { select: { name: true } }, lastChangedBy: { select: { name: true } } },
+    orderBy: [{ status: 'asc' }, { frequencyScore: 'desc' }, { name: 'asc' }],
   }) as unknown as ItemWithCategory[];
 
-  const suggestions = getDashboardSuggestions(items);
-
-  return (
-    <div style={{ maxWidth: '640px', margin: '0 auto' }}>
-      {/* Vorschläge (RL-13) */}
-      {suggestions.length > 0 && (
-        <section style={{ padding: 'var(--space-4)', borderBottom: '1px solid var(--color-divider)' }}>
-          <h2 style={sectionHeading}>Jetzt auffüllen?</h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2)' }}>
-            {suggestions.map((s) => (
-              <SuggestionCard key={s.id} item={s as unknown as ItemWithCategory} householdId={householdId} userId={userId} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Artikelliste */}
-      <section style={{ paddingTop: 'var(--space-2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--space-3) var(--space-4)' }}>
-          <h2 style={sectionHeading}>Alle Artikel</h2>
-          <Link href="/items/new" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-primary)', fontWeight: 500 }}>
-            + Neu
-          </Link>
-        </div>
-        <ItemList items={items} householdId={householdId} userId={userId} />
-      </section>
-    </div>
-  );
+  return <ShoppingTileGrid items={items} householdId={householdId} />;
 }
-
-function SuggestionCard({
-  item, householdId, userId,
-}: { item: ItemWithCategory; householdId: string; userId: string }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: 'var(--space-3)', background: 'var(--color-surface)',
-      border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
-      gap: 'var(--space-3)',
-    }}>
-      <div>
-        <p style={{ fontWeight: 500 }}>{item.name}</p>
-        {item.avgCycleDays && (
-          <p style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-muted)' }}>
-            Ø {item.avgCycleDays}d Zyklus
-          </p>
-        )}
-      </div>
-      <span style={{
-        fontSize: 'var(--text-xs)', padding: 'var(--space-1) var(--space-2)',
-        background: 'var(--color-primary-highlight)', color: 'var(--color-primary)',
-        borderRadius: 'var(--radius-full)', fontWeight: 500,
-      }}>fällig</span>
-    </div>
-  );
-}
-
-const sectionHeading: React.CSSProperties = { fontSize: 'var(--text-base)', fontWeight: 600 };
-const emptyWrapStyle: React.CSSProperties = { minHeight: '70dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'var(--space-4)', padding: 'var(--space-8)' };
-const btnStyle: React.CSSProperties = { display: 'inline-block', padding: 'var(--space-3) var(--space-6)', background: 'var(--color-primary)', color: '#fff', borderRadius: 'var(--radius-md)', textDecoration: 'none', fontWeight: 500, minHeight: '44px' };
