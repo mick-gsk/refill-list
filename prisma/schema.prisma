@@ -15,15 +15,16 @@ datasource db {
 // ──────────────────────────────────────────────
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  memberships HouseholdMember[]
-  changedItems Item[]   @relation("ItemLastChangedBy")
-  createdItems Item[]   @relation("ItemCreatedBy")
+  memberships   HouseholdMember[]
+  changedItems  Item[]           @relation("ItemLastChangedBy")
+  createdItems  Item[]           @relation("ItemCreatedBy")
   historyEvents ShoppingHistory[]
 }
 
@@ -32,23 +33,24 @@ model User {
 // ──────────────────────────────────────────────
 
 model Household {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String
+  reminderSettings Json?    // z.B. { enabled: true, time: "08:00" }
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
-  members     HouseholdMember[]
-  invites     HouseholdInvite[]
-  items       Item[]
-  categories  Category[]
-  history     ShoppingHistory[]
+  members    HouseholdMember[]
+  invites    HouseholdInvite[]
+  items      Item[]
+  categories Category[]
+  history    ShoppingHistory[]
 }
 
 model HouseholdMember {
-  id          String               @id @default(cuid())
-  role        HouseholdRole        @default(MEMBER)
+  id          String                @id @default(cuid())
+  role        HouseholdRole         @default(MEMBER)
   status      HouseholdMemberStatus @default(ACTIVE)
-  joinedAt    DateTime             @default(now())
+  joinedAt    DateTime              @default(now())
 
   householdId String
   household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
@@ -60,12 +62,12 @@ model HouseholdMember {
 }
 
 model HouseholdInvite {
-  id          String   @id @default(cuid())
-  token       String   @unique @default(cuid())
+  id          String    @id @default(cuid())
+  token       String    @unique @default(cuid())
   expiresAt   DateTime
   usedAt      DateTime?
   revokedAt   DateTime?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   householdId String
   household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
@@ -86,41 +88,41 @@ enum HouseholdMemberStatus {
 // ──────────────────────────────────────────────
 
 model Item {
-  id             String     @id @default(cuid())
-  name           String
-  normalizedName String     // RL-20: lowercase, getrimmt
-  canonicalItemId String?   // RL-20: Alias-Verknüpfung
-  status         ItemStatus @default(OK)
-  isStandard     Boolean    @default(false)  // RL-03
-  frequencyScore Int        @default(0)      // RL-04: 0–100
+  id              String   @id @default(cuid())
+  name            String
+  normalizedName  String   // RL-20: lowercase, getrimmt
+  canonicalItemId String?  // RL-20: Alias-Verknüpfung
+  status          ItemStatus      @default(OK)
+  isStandard      Boolean         @default(false)  // RL-03
+  frequencyScore  Int             @default(0)       // RL-04: 0–100
   // RL-11: Zyklusmodell
-  avgCycleDays       Int?   // Durchschnitt zwischen empty-Events
-  cycleConfidence    CycleConfidence @default(NONE)
-  nextPredictedEmpty DateTime?
+  avgCycleDays        Int?
+  cycleConfidence     CycleConfidence @default(NONE)
+  nextPredictedEmpty  DateTime?
   // RL-21: Item-Lifecycle
-  itemState      ItemState  @default(AVAILABLE)
+  itemState       ItemState       @default(AVAILABLE)
   // Metadaten
-  note           String?
-  quantity       Int        @default(1)
-  unit           String?
-  priorityOverride Boolean  @default(false)  // RL-14: manueller kritisch-Override
+  note            String?
+  quantity        Int             @default(1)
+  unit            String?
+  priorityOverride      Boolean  @default(false)   // RL-14
   priorityOverrideUntil DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
-  householdId    String
-  household      Household  @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId     String
+  household       Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
-  categoryId     String?
-  category       Category?  @relation(fields: [categoryId], references: [id])
+  categoryId      String?
+  category        Category? @relation(fields: [categoryId], references: [id])
 
-  createdById    String?
-  createdBy      User?      @relation("ItemCreatedBy", fields: [createdById], references: [id])
+  createdById     String?
+  createdBy       User?     @relation("ItemCreatedBy", fields: [createdById], references: [id])
 
   lastChangedById String?
   lastChangedBy   User?     @relation("ItemLastChangedBy", fields: [lastChangedById], references: [id])
 
-  history        ShoppingHistory[]
+  history         ShoppingHistory[]
 
   @@index([householdId, status])
   @@index([householdId, isStandard])
@@ -128,11 +130,11 @@ model Item {
 }
 
 model Category {
-  id          String    @id @default(cuid())
-  name        String
-  color       String?   // Hex
-  fallbackCycleDays Int @default(21) // RL-11
-  createdAt   DateTime  @default(now())
+  id                String   @id @default(cuid())
+  name              String
+  color             String?  // Hex
+  fallbackCycleDays Int      @default(21) // RL-11
+  createdAt         DateTime @default(now())
 
   householdId String
   household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
@@ -143,13 +145,13 @@ model Category {
 }
 
 enum ItemStatus {
-  OK      // vorhanden
-  LOW     // fast leer
-  EMPTY   // leer / auf Einkaufsliste
+  OK
+  LOW
+  EMPTY
 }
 
 enum ItemState {
-  AVAILABLE  // RL-21
+  AVAILABLE
   PLANNED
   PURCHASED
   ARCHIVED
@@ -167,20 +169,20 @@ enum CycleConfidence {
 // ──────────────────────────────────────────────
 
 model ShoppingHistory {
-  id          String    @id @default(cuid())
-  eventType   HistoryEventType
-  source      CaptureSource @default(APP) // RL-16
-  itemName    String    // snapshot: Name zum Zeitpunkt des Events
-  createdAt   DateTime  @default(now())
+  id        String           @id @default(cuid())
+  eventType HistoryEventType
+  source    CaptureSource    @default(APP) // RL-16
+  itemName  String           // snapshot: Name zum Zeitpunkt des Events
+  createdAt DateTime         @default(now())
 
-  householdId String
-  household   Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  householdId   String
+  household     Household @relation(fields: [householdId], references: [id], onDelete: Cascade)
 
-  itemId      String
-  item        Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
 
   triggeredById String?
-  triggeredBy   User?   @relation(fields: [triggeredById], references: [id])
+  triggeredBy   User?     @relation(fields: [triggeredById], references: [id])
 
   @@index([householdId, createdAt])
   @@index([itemId, eventType])
@@ -190,7 +192,7 @@ enum HistoryEventType {
   MARKED_LOW
   MARKED_EMPTY
   MARKED_OK
-  PURCHASED         // RL-21
+  PURCHASED
   SUGGESTION_ACCEPTED
   SUGGESTION_DISMISSED
 }
