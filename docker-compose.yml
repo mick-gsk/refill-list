@@ -1,0 +1,39 @@
+# Lokaler Start: docker compose up --build
+# Die App ist dann unter http://localhost:3000 erreichbar.
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: refill_list
+      POSTGRES_USER: refill
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-refill_local_pw}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U refill -d refill_list"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://refill:${POSTGRES_PASSWORD:-refill_local_pw}@db:5432/refill_list
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-change_me_in_production_min32chars!}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
+      NODE_ENV: production
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >-
+      sh -c "npx prisma migrate deploy && node server.js"
+
+volumes:
+  db_data:
