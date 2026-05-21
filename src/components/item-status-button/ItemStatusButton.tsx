@@ -2,7 +2,7 @@
 /**
  * 1-Tap Statuswechsel-Button (RL-02).
  * Optimistic Update: Status wechselt sofort, Server Action im Hintergrund.
- * Touch Target >= 56px (RL-15).
+ * Touch Target >= 44px (RL-15).
  */
 import { useState, useTransition } from 'react';
 import type { ItemStatus } from '@/shared/types/index';
@@ -14,17 +14,17 @@ interface ItemStatusButtonProps {
   householdId: string;
   initialStatus: ItemStatus;
   userId: string;
-  /** Callback nach erfolgreichem Update */
+  /** Callback nach erfolgreichem Update — liefert neuen Status */
   onStatusChange?: (newStatus: ItemStatus) => void;
 }
 
 /**
- * Zyklusbutton für Artikel-Status: OK → LOW → EMPTY → OK.
+ * Zyklusbutton: OK → LOW → EMPTY → OK.
  * Zeigt sofortiges visuelles Feedback (Optimistic Update).
+ * Bei Fehler automatischer Rollback.
  */
 export function ItemStatusButton({
   itemId,
-  householdId,
   initialStatus,
   userId,
   onStatusChange,
@@ -37,16 +37,18 @@ export function ItemStatusButton({
   const label = STATUS_LABELS[status];
 
   function handleClick() {
+    const prevStatus = status;
     const optimisticNext = nextStatus;
+
     setStatus(optimisticNext); // Optimistic Update
 
     startTransition(async () => {
       const result = await updateItemStatus(
         { itemId, status: optimisticNext },
-        { userId }
+        { userId },
       );
       if (!result.success) {
-        setStatus(status); // Rollback bei Fehler
+        setStatus(prevStatus); // Rollback bei Fehler
       } else {
         onStatusChange?.(optimisticNext);
       }
@@ -63,8 +65,8 @@ export function ItemStatusButton({
         display: 'inline-flex',
         alignItems: 'center',
         gap: '0.375rem',
-        minWidth: '56px',
-        minHeight: '56px',
+        minWidth: '44px',
+        minHeight: '44px',
         padding: '0 var(--space-3)',
         borderRadius: 'var(--radius-full)',
         border: `1.5px solid ${color}`,
@@ -73,7 +75,8 @@ export function ItemStatusButton({
         fontWeight: 500,
         cursor: isPending ? 'wait' : 'pointer',
         opacity: isPending ? 0.6 : 1,
-        transition: 'opacity var(--transition-interactive), border-color var(--transition-interactive), color var(--transition-interactive)',
+        transition:
+          'opacity var(--transition-interactive), border-color var(--transition-interactive), color var(--transition-interactive)',
         background: 'none',
         whiteSpace: 'nowrap',
       }}
